@@ -104,6 +104,29 @@ export default async function handler(req, res) {
             ON CONFLICT (google_event_id) DO UPDATE SET lark_event_id = ${larkEventId}, updated_at = NOW()
           `;
           results.push({ id: event.id, action: "created", larkEventId });
+
+          // Gửi thông báo Lark về event mới
+          const startDisplay = new Date(startDt).toLocaleString("vi-VN", {
+            timeZone: "Asia/Ho_Chi_Minh",
+            hour: "2-digit",
+            minute: "2-digit",
+            day: "2-digit",
+            month: "2-digit",
+          });
+          await fetch("https://open.larksuite.com/open-apis/im/v1/messages?receive_id_type=open_id", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${larkToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              receive_id: "ou_29d1b36650b710e31ed50f3b3a0f5878",
+              msg_type: "text",
+              content: JSON.stringify({
+                text: `📅 Lịch mới từ Google Calendar:\n${larkEventBody.summary}\n⏰ ${startDisplay}`,
+              }),
+            }),
+          });
         } else {
           results.push({ id: event.id, action: "failed", error: createData });
         }
