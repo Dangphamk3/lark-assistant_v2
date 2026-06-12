@@ -43,5 +43,5 @@ export default async function handler(req, res) {
     WHERE id = 1
   `;
 
-  return res.json({ success: true, appTokenData, result, data });
+  return res.send("✅ Đăng nhập thành công! Token đã được lưu (có refresh_token, hết hạn 30 ngày).");
 }
