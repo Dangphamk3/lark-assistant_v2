@@ -48,5 +48,5 @@ export default async function handler(req, res) {
     };
   });
 
-  return res.status(200).json({ total: events.length, events });
+  return res.status(200).json({ total: events.length, events, raw: data });
 }
