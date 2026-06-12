@@ -6,43 +6,42 @@ export default async function handler(req, res) {
 
   const APP_ID = process.env.LARK_APP_ID;
   const APP_SECRET = process.env.LARK_APP_SECRET;
-  const REDIRECT_URI = process.env.BASE_URL + '/api/callback';
 
-  const credentials = Buffer.from(`${APP_ID}:${APP_SECRET}`).toString("base64");
+  const appTokenRes = await fetch("https://open.larksuite.com/open-apis/auth/v3/app_access_token/internal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ app_id: APP_ID, app_secret: APP_SECRET }),
+  });
+  const appTokenData = await appTokenRes.json();
+  const appAccessToken = appTokenData.app_access_token;
 
-  const tokenRes = await fetch("https://open.larksuite.com/open-apis/authen/v2/oauth/token", {
+  const tokenRes = await fetch("https://open.larksuite.com/open-apis/authen/v1/access_token", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Basic ${credentials}`,
+      "Authorization": `Bearer ${appAccessToken}`,
     },
     body: JSON.stringify({
       grant_type: "authorization_code",
       code,
-      redirect_uri: REDIRECT_URI,
     }),
   });
 
-  const data = await tokenRes.json();
+  const result = await tokenRes.json();
+  const data = result.data || {};
 
-  const accessToken = data?.access_token;
-  const refreshToken = data?.refresh_token;
-  const expiresIn = data?.expires_in || 7200;
-
-  if (!accessToken) {
-    return res.status(400).json({ error: "Lark auth failed", detail: data });
+  if (!data.access_token) {
+    return res.status(400).json({ error: "Lark auth failed", detail: result });
   }
 
   const sql = neon(process.env.DATABASE_URL);
-
   await sql`
-    INSERT INTO tokens (id, access_token, refresh_token, expires_at)
-    VALUES (1, ${accessToken}, ${refreshToken}, ${Date.now() + expiresIn * 1000})
-    ON CONFLICT (id) DO UPDATE SET
-      access_token = ${accessToken},
-      refresh_token = ${refreshToken},
-      expires_at = ${Date.now() + expiresIn * 1000}
+    UPDATE tokens SET
+      access_token = ${data.access_token},
+      refresh_token = ${data.refresh_token},
+      expires_at = ${Date.now() + (data.expires_in || 7200) * 1000}
+    WHERE id = 1
   `;
 
-  return res.send("✅ Đăng nhập thành công! Token đã được lưu. Bạn có thể đóng tab này.");
+  return res.send("✅ Đăng nhập thành công! Token đã được lưu (có refresh_token, hết hạn 30 ngày).");
 }
