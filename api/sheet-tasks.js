@@ -36,10 +36,15 @@ export default async function handler(req, res) {
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const data = await dataRes.json();
+
+  if (data.error) {
+    return res.status(500).json({ error: "Sheets API error", sheetName, GID, detail: data.error });
+  }
+
   const rows = data.values || [];
 
   if (rows.length === 0) {
-    return res.status(200).json({ total: 0, tasks: [] });
+    return res.status(200).json({ total: 0, tasks: [], debug: { sheetName, GID, rawKeys: Object.keys(data) } });
   }
 
   const headers = rows[0];
