@@ -30,7 +30,7 @@ export default async function handler(req, res) {
   const sheetName = sheetProps.title;
 
   // Lấy toàn bộ dữ liệu của sheet
-  const range = `${encodeURIComponent(sheetName)}`;
+  const range = `${encodeURIComponent(sheetName)}!A1:Z100`;
   const dataRes = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}`,
     { headers: { Authorization: `Bearer ${token}` } }
