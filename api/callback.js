@@ -1,7 +1,8 @@
 import { neon } from "@neondatabase/serverless";
 
 export default async function handler(req, res) {
-  const { code } = req.query;
+  const { code, state } = req.query;
+  const user_id = state || 'dang';
   if (!code) return res.status(400).json({ error: "Missing code" });
 
   const APP_ID = process.env.LARK_APP_ID;
@@ -21,10 +22,7 @@ export default async function handler(req, res) {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${appAccessToken}`,
     },
-    body: JSON.stringify({
-      grant_type: "authorization_code",
-      code,
-    }),
+    body: JSON.stringify({ grant_type: "authorization_code", code }),
   });
 
   const result = await tokenRes.json();
@@ -36,12 +34,13 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL);
   await sql`
-    UPDATE tokens SET
+    INSERT INTO tokens (user_id, access_token, refresh_token, expires_at)
+    VALUES (${user_id}, ${data.access_token}, ${data.refresh_token}, ${Date.now() + (data.expires_in || 7200) * 1000})
+    ON CONFLICT (user_id) DO UPDATE SET
       access_token = ${data.access_token},
       refresh_token = ${data.refresh_token},
       expires_at = ${Date.now() + (data.expires_in || 7200) * 1000}
-    WHERE id = 1
   `;
 
-  return res.send("✅ Đăng nhập thành công! Token đã được lưu (có refresh_token, hết hạn 30 ngày).");
+  return res.send(`✅ Đăng nhập thành công! Token của "${user_id}" đã được lưu.`);
 }
