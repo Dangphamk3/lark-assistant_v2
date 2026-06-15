@@ -15,22 +15,47 @@ export default async function handler(req, res) {
   if (!token) {
     return res.status(401).json({ error: "Google not connected. Visit /api/auth-google first." });
   }
-  // POST: Tạo sự kiện Google Calendar
+  // POST: Tạo sự kiện Google Calendar (check trùng + mời người qua email)
   if (req.method === "POST") {
-    const { summary, start, end, description } = req.body;
+    const { summary, start, end, description, attendees } = req.body;
     if (!summary || !start || !end) {
       return res.status(400).json({ error: "Thiếu summary, start hoặc end" });
     }
     const startISO = new Date(start * 1000).toISOString();
     const endISO = new Date(end * 1000).toISOString();
+
+    // 🔍 Check trùng: đã có sự kiện cùng tên trong khung giờ này chưa?
+    const checkUrl = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(startISO)}&timeMax=${encodeURIComponent(endISO)}&singleEvents=true&orderBy=startTime`;
+    const checkRes = await fetch(checkUrl, { headers: { Authorization: `Bearer ${token}` } });
+    const checkData = await checkRes.json();
+    const dup = (checkData.items || []).find((e) => {
+      const eStart = e.start?.dateTime || e.start?.date;
+      return (e.summary || "").trim().toLowerCase() === summary.trim().toLowerCase()
+        && Math.abs(new Date(eStart).getTime() - new Date(startISO).getTime()) < 60000;
+    });
+    if (dup) {
+      return res.status(200).json({
+        success: false,
+        duplicate: true,
+        message: `Đã có sự kiện "${dup.summary}" vào thời gian này rồi, không tạo thêm.`,
+        existing_event_id: dup.id,
+        link: dup.htmlLink,
+      });
+    }
+
     const event = {
       summary,
       description: description || "",
       start: { dateTime: startISO, timeZone: "Asia/Ho_Chi_Minh" },
       end: { dateTime: endISO, timeZone: "Asia/Ho_Chi_Minh" },
     };
+    // 👥 Thêm người tham dự nếu có email
+    if (Array.isArray(attendees) && attendees.length > 0) {
+      event.attendees = attendees.map((email) => ({ email }));
+    }
+
     const gRes = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+      "https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=all",
       {
         method: "POST",
         headers: {
@@ -50,6 +75,7 @@ export default async function handler(req, res) {
       title: data.summary,
       start_display: toVNTime(data.start?.dateTime),
       end_display: toVNTime(data.end?.dateTime),
+      attendees: (data.attendees || []).map((a) => a.email),
       link: data.htmlLink,
     });
   }
