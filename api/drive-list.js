@@ -1,12 +1,11 @@
 import { getValidGoogleToken } from "../lib/google-token.js";
-const ROOT_FOLDER_ID = "1f61D5spcEE_6f3o8O53bJc6tuiBEazES";
 export default async function handler(req, res) {
   const user_id = req.query.user || 'dang';
   const token = await getValidGoogleToken(user_id);
   if (!token) {
     return res.status(401).json({ error: "Google not connected. Visit /api/auth-google first." });
   }
-  const folderId = req.query.folderId || ROOT_FOLDER_ID;
+  const folderId = req.query.folderId || 'root';
   const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
     `'${folderId}' in parents and trashed = false`
   )}&fields=files(id,name,mimeType)`;
