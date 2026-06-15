@@ -1,5 +1,4 @@
 import { getValidGoogleToken } from "../lib/google-token.js";
-
 function toVNTime(dateStr) {
   return new Date(dateStr).toLocaleString("vi-VN", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -10,31 +9,26 @@ function toVNTime(dateStr) {
     year: "numeric",
   });
 }
-
 export default async function handler(req, res) {
-  const token = await getValidGoogleToken();
+  const user_id = req.query.user || 'dang';
+  const token = await getValidGoogleToken(user_id);
   if (!token) {
     return res.status(401).json({ error: "Google not connected. Visit /api/auth-google first." });
   }
-
-  // ✅ POST: Tạo sự kiện Google Calendar
+  // POST: Tạo sự kiện Google Calendar
   if (req.method === "POST") {
     const { summary, start, end, description } = req.body;
-
     if (!summary || !start || !end) {
       return res.status(400).json({ error: "Thiếu summary, start hoặc end" });
     }
-
     const startISO = new Date(start * 1000).toISOString();
     const endISO = new Date(end * 1000).toISOString();
-
     const event = {
       summary,
       description: description || "",
       start: { dateTime: startISO, timeZone: "Asia/Ho_Chi_Minh" },
       end: { dateTime: endISO, timeZone: "Asia/Ho_Chi_Minh" },
     };
-
     const gRes = await fetch(
       "https://www.googleapis.com/calendar/v3/calendars/primary/events",
       {
@@ -46,13 +40,10 @@ export default async function handler(req, res) {
         body: JSON.stringify(event),
       }
     );
-
     const data = await gRes.json();
-
     if (!gRes.ok) {
       return res.status(gRes.status).json({ error: data.error?.message || "Lỗi tạo sự kiện" });
     }
-
     return res.status(200).json({
       success: true,
       event_id: data.id,
@@ -62,8 +53,7 @@ export default async function handler(req, res) {
       link: data.htmlLink,
     });
   }
-
-  // ✅ GET: Đọc sự kiện Google Calendar
+  // GET: Đọc sự kiện Google Calendar
   const now = Date.now();
   const timeMin = req.query.start
     ? new Date(parseInt(req.query.start) * 1000).toISOString()
@@ -71,13 +61,11 @@ export default async function handler(req, res) {
   const timeMax = req.query.end
     ? new Date(parseInt(req.query.end) * 1000).toISOString()
     : new Date(now + 7 * 24 * 3600 * 1000).toISOString();
-
   const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&timeZone=Asia/Ho_Chi_Minh`;
   const gRes = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await gRes.json();
-
   const events = (data.items || []).map(e => {
     const startDt = e.start?.dateTime || e.start?.date;
     const endDt = e.end?.dateTime || e.end?.date;
@@ -91,6 +79,5 @@ export default async function handler(req, res) {
       location: e.location || "",
     };
   });
-
   return res.status(200).json({ total: events.length, events, raw: data });
 }
